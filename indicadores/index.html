@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Indicadores de calidad del agua costera</title>
+<script src="lib/chart.umd.min.js"></script>
+<script src="lib/datalabels.min.js"></script>
+<script src="data.js"></script>
+<style>
+  :root{
+    --guinda:#611232; --guinda2:#9B2247; --igold:#A57F2C;
+    --green:#27AE60; --red:#C0392B; --amber:#E67E22; --navy:#1A5276; --teal:#17A589;
+    --ink:#222; --muted:#667; --line:#e6e8ec; --bg:#f5f7fa;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       color:var(--ink); background:var(--bg); line-height:1.5;}
+  header{background:linear-gradient(135deg,var(--guinda),var(--guinda2)); color:#fff; padding:28px 20px 24px; text-align:center;}
+  header h1{margin:0 0 6px; font-size:1.55rem; font-weight:800}
+  header p{margin:0; opacity:.92; font-size:.92rem}
+  main{max-width:1100px; margin:0 auto; padding:20px 16px 50px}
+
+  .toolbar{display:flex; flex-wrap:wrap; gap:18px; align-items:flex-end;
+           background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px 16px; margin:18px 0 22px}
+  .fld{display:flex; flex-direction:column; gap:4px}
+  .fld label{font-size:.74rem; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.4px}
+  select{padding:8px 11px; border:1px solid var(--line); border-radius:8px; font-size:.9rem; background:#fff; min-width:230px}
+
+  .kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:14px; margin:0 0 26px}
+  .kpi{background:#fff; border:1px solid var(--line); border-radius:12px; padding:15px; text-align:center}
+  .kpi .num{font-size:1.7rem; font-weight:800; color:var(--guinda); line-height:1}
+  .kpi .lbl{font-size:.78rem; color:var(--muted); margin-top:6px}
+
+  .card{background:#fff; border:1px solid var(--line); border-radius:14px; padding:20px 20px 12px;
+        margin-bottom:24px; box-shadow:0 1px 3px rgba(0,0,0,.04)}
+  .card h2{margin:0 0 2px; font-size:1.1rem; color:var(--guinda)}
+  .card .sub{margin:0 0 12px; font-size:.84rem; color:var(--muted)}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:18px}
+  @media(max-width:760px){ .grid2{grid-template-columns:1fr} }
+  .chart-wrap{position:relative; width:100%}
+  table.heat{border-collapse:collapse; width:100%; font-size:.72rem}
+  table.heat th{padding:5px 3px; color:var(--muted); font-weight:600; text-align:center; font-size:.7rem}
+  table.heat td.state{text-align:left; font-weight:600; white-space:nowrap; padding-right:8px; font-size:.78rem; color:var(--ink)}
+  table.heat td.cell{text-align:center; padding:6px 3px; border-radius:3px; font-weight:600; min-width:30px}
+  table.heat td.cell.empty{background:#f0f2f5; color:#bbb}
+  .hleg{display:flex; align-items:center; gap:8px; font-size:.74rem; color:var(--muted); margin-top:10px}
+  .hleg .hbar{height:12px; width:160px; border-radius:3px; background:linear-gradient(to right,#1A9850,#FEE08B,#D73027)}
+  .note{background:#fff; border:1px dashed #cdd3da; border-radius:12px; padding:14px 18px; font-size:.82rem; color:#555}
+  .note b{color:var(--guinda)}
+  .card.alert{border-left:5px solid var(--red); background:#fffaf9}
+  .card.alert h2{color:var(--red)}
+  .alert h3{font-size:.9rem; color:var(--red); margin:14px 0 5px}
+  .alert h3:first-child{margin-top:2px}
+  .alert-ok{color:var(--green); font-weight:600; margin:4px 0 8px}
+  table.alertt{border-collapse:collapse; width:100%; font-size:.85rem}
+  table.alertt th,table.alertt td{padding:6px 8px; border-bottom:1px solid var(--line); text-align:left}
+  table.alertt td.pct{text-align:right; font-weight:700}
+  table.alertt td.n{text-align:right; color:var(--muted)}
+  .report{border-top:4px solid var(--guinda); background:#fffdfb}
+  .rhead{display:flex; align-items:center; justify-content:space-between; gap:10px}
+  .prbtn{background:#fff; color:var(--guinda); border:1px solid var(--guinda); border-radius:7px;
+         padding:6px 12px; font-size:.8rem; cursor:pointer; font-weight:600; white-space:nowrap}
+  .prbtn:hover{background:var(--guinda); color:#fff}
+  .rbody h3{font-size:.9rem; color:var(--guinda); margin:14px 0 3px}
+  .rbody p{margin:3px 0; font-size:.9rem}
+  .rbody .big{font-size:1.1rem; font-weight:800; color:var(--guinda)}
+  footer{text-align:center; font-size:.78rem; color:var(--muted); padding:10px 16px 40px}
+  @media print{
+    header{-webkit-print-color-adjust:exact; print-color-adjust:exact}
+    .toolbar, .prbtn{display:none !important}
+    .card{break-inside:avoid; box-shadow:none}
+    body{background:#fff}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Indicadores de calidad del agua costera</h1>
+  <p>CONAGUA · monitoreo de cuerpos de agua costeros · 2012–2025</p>
+</header>
+
+<main>
+  <div class="toolbar">
+    <div class="fld">
+      <label>Indicador</label>
+      <select id="selInd"></select>
+    </div>
+    <div class="fld">
+      <label>Estado</label>
+      <select id="selEst"></select>
+    </div>
+  </div>
+
+  <section class="kpis" id="kpis"></section>
+
+  <!-- Informe -->
+  <div class="card report" id="reportCard">
+    <h2 class="rhead">Informe — resumen de resultados
+      <button class="prbtn" id="btnPrint">🖨 Imprimir / Guardar PDF</button></h2>
+    <div id="reportBody" class="rbody"></div>
+  </div>
+
+  <!-- ALERTA: estados problemáticos -->
+  <div class="card alert" id="alertCard">
+    <h2>Estados en alerta</h2>
+    <p class="sub">Mayor porcentaje de muestras que excede el límite de enterococos fecales (200 NMP/100 mL). Los indicadores están agregados por estado; no incluyen el nombre del sitio.</p>
+    <div id="alertBody"></div>
+  </div>
+
+  <!-- 1. Tendencia por año -->
+  <div class="card">
+    <h2>Tendencia por año</h2>
+    <p class="sub" id="sub1"></p>
+    <div class="chart-wrap" style="height:360px"><canvas id="cTrend"></canvas></div>
+  </div>
+
+  <!-- 2. Comparación por estado -->
+  <div class="card">
+    <h2>Comparación por estado</h2>
+    <p class="sub" id="sub2"></p>
+    <div class="chart-wrap" style="height:460px"><canvas id="cState"></canvas></div>
+  </div>
+
+  <!-- 3. Cumplimiento enterococos -->
+  <div class="card">
+    <h2>Cumplimiento de enterococos fecales</h2>
+    <p class="sub">% de muestras que excede 200 NMP/100 mL (criterio recreativo). Aplica al indicador ENTEROC_FEC, independientemente del filtro de indicador.</p>
+    <div class="grid2">
+      <div class="chart-wrap" style="height:320px"><canvas id="cCompYear"></canvas></div>
+      <div class="chart-wrap" style="height:320px"><canvas id="cCompState"></canvas></div>
+    </div>
+  </div>
+
+  <!-- 4. Mapa de calor estado × año -->
+  <div class="card">
+    <h2>Mapa de calor — estado × año</h2>
+    <p class="sub" id="sub4"></p>
+    <div id="heatBox" style="overflow-x:auto"></div>
+    <div class="hleg"><span>mejor</span><span class="hbar"></span><span>peor</span></div>
+  </div>
+
+  <div class="note">
+    <b>Notas metodológicas.</b> Se usa la <b>mediana</b> (no el promedio) por ser robusta ante valores extremos y censura.
+    Los valores censurados (p. ej. <i>&lt;3</i>, <i>&gt;24000</i>) se sustituyen por su límite numérico.
+    Los indicadores bacterianos (ENTEROC_FEC, SST) se grafican en <b>escala logarítmica</b> por su amplio rango.
+    La serie es sólida en <b>2012–2018</b>; 2019 en adelante tiene pocos registros.
+  </div>
+
+  <footer id="foot"></footer>
+</main>
+
+<script>
+/* ===================================================== MOTOR ===== */
+const D = window.IND_DATA;
+const C = {guinda:'#611232', green:'#27AE60', red:'#C0392B', amber:'#E67E22', navy:'#1A5276', teal:'#17A589'};
+if (window.ChartDataLabels) Chart.register(window.ChartDataLabels);
+Chart.defaults.plugins.datalabels.display = false;
+Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+
+const LABELS = {
+  'ENTEROC_FEC':'Enterococos fecales (NMP/100 mL)',
+  'SST':'Sólidos suspendidos totales (mg/L)',
+  'OD_%_SUP':'Oxígeno disuelto — % sat. (superficie)',
+  'OD_mg/L_SUP':'Oxígeno disuelto — mg/L (superficie)',
+  'OD_%_MED':'Oxígeno disuelto — % sat. (media)',
+  'OD_mg/L_MED':'Oxígeno disuelto — mg/L (media)',
+  'OD_%_FON':'Oxígeno disuelto — % sat. (fondo)',
+  'OD_mg/L_FON':'Oxígeno disuelto — mg/L (fondo)'
+};
+const LOG_INDS = new Set(['ENTEROC_FEC','SST']);
+const N = D.est.length;
+let indicador = 'ENTEROC_FEC';
+let eiSel = -1;                       // -1 = todos
+const charts = {};
+
+const titleCase = s => s.toLowerCase().replace(/(^|\s|\/)\p{L}/gu, c=>c.toUpperCase());
+function median(a){ if(!a.length) return null; const s=[...a].sort((x,y)=>x-y); const m=s.length>>1; return s.length%2? s[m] : (s[m-1]+s[m])/2; }
+function quantile(s,q){ if(!s.length) return null; const p=(s.length-1)*q, b=Math.floor(p), r=p-b; return s[b+1]!==undefined? s[b]+r*(s[b+1]-s[b]) : s[b]; }
+function pass(i){ return eiSel===-1 || D.est[i]===eiSel; }
+function destroy(id){ if(charts[id]){ charts[id].destroy(); delete charts[id]; } }
+
+/* ===================================================== KPIs ===== */
+function renderKPIs(){
+  let muestras=0, aptas=0, totEn=0;
+  const sitiosFiltro = eiSel===-1 ? D.meta.sitios : null;
+  for(let i=0;i<N;i++){ if(!pass(i)) continue; muestras++;
+    const e=D.v['ENTEROC_FEC'][i]; if(e!=null){ totEn++; if(e<=200) aptas++; } }
+  const pctApta = totEn? (aptas/totEn*100) : null;
+  const nEst = eiSel===-1 ? D.estados.length : 1;
+  document.getElementById('kpis').innerHTML = [
+    [muestras.toLocaleString('es-MX'), 'Muestras'],
+    [(eiSel===-1? D.meta.sitios : '—'), 'Sitios de monitoreo'],
+    [nEst, 'Estados'],
+    [D.meta.anio_min+'–'+D.meta.anio_max, 'Periodo'],
+    [(pctApta!=null? pctApta.toFixed(1)+'%':'—'), 'Enterococos ≤200 (aptas)']
+  ].map(([n,l])=>`<div class="kpi"><div class="num">${n}</div><div class="lbl">${l}</div></div>`).join('');
+}
+
+/* ===================================================== ALERTA =========== */
+// % de muestras de enterococos que excede 200 NMP/100 mL, por estado (agregado; no hay sitio individual)
+function stateExceedance(yearFrom){
+  const v=D.v['ENTEROC_FEC'];
+  const byE=D.estados.map(()=>[0,0]);
+  for(let i=0;i<N;i++){
+    if(yearFrom!=null && D.anio[i]<yearFrom) continue;
+    const e=v[i]; if(e==null) continue;
+    byE[D.est[i]][0]++; if(e>200) byE[D.est[i]][1]++;
+  }
+  return D.estados.map((e,k)=>({e, n:byE[k][0], p: byE[k][0]? byE[k][1]/byE[k][0]*100 : null}))
+    .filter(r=>r.p!=null && r.n>=5)
+    .sort((a,b)=>b.p-a.p);
+}
+function alertTable(rows){
+  const col=p=>p>=50?'var(--red)':p>=25?'var(--amber)':'var(--igold)';
+  return '<table class="alertt"><tr><th>Estado</th><th style="text-align:right">% excedencia</th><th style="text-align:right">Muestras</th></tr>'+
+    rows.map(r=>`<tr><td>${titleCase(r.e)}</td><td class="pct" style="color:${col(r.p)}">${r.p.toFixed(0)}%</td><td class="n">${r.n}</td></tr>`).join('')+
+    '</table>';
+}
+function renderAlert(){
+  const recentFrom=D.meta.anio_max-1;
+  const recentAll=stateExceedance(recentFrom);
+  const recent=recentAll.filter(r=>r.p>0).slice(0,5);
+  const hist=stateExceedance(null).filter(r=>r.p>0).slice(0,5);
+  let h='';
+  h+=`<h3>Mayor excedencia reciente (${recentFrom}–${D.meta.anio_max})</h3>`;
+  if(recent.length) h+=alertTable(recent);
+  else if(recentAll.length) h+=`<p class="alert-ok">✔ Sin excedencias en ${recentAll.length===1?'el único estado':'los '+recentAll.length+' estados'} con muestreo suficiente (≥5 muestras) en el periodo reciente.</p>`;
+  else h+='<p class="alert-ok">Cobertura de muestreo insuficiente en el periodo reciente.</p>';
+  h+=`<h3>Mayor excedencia histórica (${D.meta.anio_min}–${D.meta.anio_max})</h3>`;
+  h+= hist.length ? alertTable(hist) : '<p class="alert-ok">✔ Sin excedencias registradas.</p>';
+  document.getElementById('alertBody').innerHTML=h;
+}
+
+/* ===================================================== 1. TENDENCIA ===== */
+function renderTrend(){
+  destroy('cTrend');
+  const v=D.v[indicador], an=D.anio, map={};
+  for(let i=0;i<N;i++){ if(!pass(i)) continue; const y=an[i], x=v[i]; if(y==null||x==null) continue; (map[y] ??= []).push(x); }
+  const years=Object.keys(map).map(Number).sort((a,b)=>a-b);
+  const meds=years.map(y=>median(map[y]));
+  charts.cTrend = new Chart(document.getElementById('cTrend'),{
+    type:'line',
+    data:{labels:years, datasets:[{label:'Mediana', data:meds, borderColor:C.guinda, backgroundColor:C.guinda,
+      borderWidth:2.4, tension:.25, pointRadius:4, spanGaps:true,
+      datalabels:{display:true, align:'top', color:C.guinda, font:{size:9,weight:'bold'}, formatter:v=>v==null?'':v.toFixed(1)}}]},
+    options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ y:{ type: LOG_INDS.has(indicador)?'logarithmic':'linear',
+        title:{display:true, text:'Mediana — '+LABELS[indicador]} },
+        x:{title:{display:true, text:'Año'}} }}
+  });
+  document.getElementById('sub1').textContent =
+    `Mediana de ${LABELS[indicador]} por año` + (eiSel===-1?' (nacional)':' — '+titleCase(D.estados[eiSel]));
+}
+
+/* ===================================================== 2. POR ESTADO ===== */
+function renderState(){
+  destroy('cState');
+  const v=D.v[indicador], groups=D.estados.map(()=>[]);
+  for(let i=0;i<N;i++){ const x=v[i]; if(x==null) continue; groups[D.est[i]].push(x); }
+  let rows=D.estados.map((e,k)=>({e, m: median(groups[k])})).filter(r=>r.m!=null);
+  rows.sort((a,b)=>b.m-a.m);
+  charts.cState = new Chart(document.getElementById('cState'),{
+    type:'bar',
+    data:{labels:rows.map(r=>titleCase(r.e)),
+      datasets:[{data:rows.map(r=>r.m), backgroundColor:rows.map((r,i)=> i===0?C.guinda:C.navy),
+        datalabels:{display:true, anchor:'end', align:'end', color:'#333', font:{size:9,weight:'bold'}, formatter:v=>v.toFixed(1)}}]},
+    options:{indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ x:{ type: LOG_INDS.has(indicador)?'logarithmic':'linear', beginAtZero:!LOG_INDS.has(indicador),
+        title:{display:true, text:'Mediana — '+LABELS[indicador]} } }}
+  });
+  document.getElementById('sub2').textContent = `Mediana de ${LABELS[indicador]} por estado (todos los años)`;
+}
+
+/* ===================================================== 3. CUMPLIMIENTO ===== */
+function pctExceed(idx){ // idx: array de filas; % enteroc>200
+  let t=0,ex=0; for(const i of idx){ const e=D.v['ENTEROC_FEC'][i]; if(e!=null){t++; if(e>200)ex++;} }
+  return t? ex/t*100 : null;
+}
+function renderComp(){
+  destroy('cCompYear'); destroy('cCompState');
+  // por año (respeta filtro estado)
+  const byY={}; for(let i=0;i<N;i++){ if(!pass(i)) continue; const y=D.anio[i], e=D.v['ENTEROC_FEC'][i]; if(y==null||e==null) continue; (byY[y] ??= [0,0]); byY[y][0]++; if(e>200) byY[y][1]++; }
+  const years=Object.keys(byY).map(Number).sort((a,b)=>a-b);
+  const pY=years.map(y=> byY[y][1]/byY[y][0]*100);
+  const colY=v=> v>=20?C.red : v>=10?C.amber : C.green;
+  charts.cCompYear = new Chart(document.getElementById('cCompYear'),{
+    type:'bar', data:{labels:years, datasets:[{data:pY, backgroundColor:pY.map(colY),
+      datalabels:{display:true, anchor:'end', align:'end', color:'#333', font:{size:9,weight:'bold'}, formatter:v=>v.toFixed(0)+'%'}}]},
+    options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false},
+      title:{display:true, text:'% que excede 200 NMP — por año'}},
+      scales:{y:{beginAtZero:true, ticks:{callback:v=>v+'%'}}}}
+  });
+  // por estado (todos los años)
+  const byE=D.estados.map(()=>[0,0]);
+  for(let i=0;i<N;i++){ const e=D.v['ENTEROC_FEC'][i]; if(e==null) continue; byE[D.est[i]][0]++; if(e>200) byE[D.est[i]][1]++; }
+  let rs=D.estados.map((e,k)=>({e, p: byE[k][0]? byE[k][1]/byE[k][0]*100 : null})).filter(r=>r.p!=null).sort((a,b)=>b.p-a.p);
+  charts.cCompState = new Chart(document.getElementById('cCompState'),{
+    type:'bar', data:{labels:rs.map(r=>titleCase(r.e)), datasets:[{data:rs.map(r=>r.p), backgroundColor:rs.map(r=>colY(r.p)),
+      datalabels:{display:true, anchor:'end', align:'end', color:'#333', font:{size:8,weight:'bold'}, formatter:v=>v.toFixed(0)+'%'}}]},
+    options:{indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false},
+      title:{display:true, text:'% que excede 200 NMP — por estado'}},
+      scales:{x:{beginAtZero:true, ticks:{callback:v=>v+'%'}}}}
+  });
+}
+
+/* ===================================================== 4. MAPA DE CALOR ===== */
+function mix(c1,c2,t){ const h=c=>[parseInt(c.slice(1,3),16),parseInt(c.slice(3,5),16),parseInt(c.slice(5,7),16)];
+  const a=h(c1),b=h(c2),r=a.map((x,i)=>Math.round(x+(b[i]-x)*t)); return `rgb(${r[0]},${r[1]},${r[2]})`; }
+function heatColor2(t){ t=Math.max(0,Math.min(1,t));   // 0 = verde (mejor) → 1 = rojo (peor)
+  return t<0.5 ? mix('#1A9850','#FEE08B',t/0.5) : mix('#FEE08B','#D73027',(t-0.5)/0.5); }
+function renderHeatmap(){
+  const v=D.v[indicador], isLog=LOG_INDS.has(indicador);
+  const HIGHER_WORSE = !indicador.startsWith('OD');   // enterococos/SST: alto=peor · OD: alto=mejor
+  const dec = indicador.startsWith('OD_mg');
+  const fmtCell = val => dec ? val.toFixed(1) : Math.round(val);
+  // recolectar valores por estado-año
+  const sy={}, yearsSet=new Set();
+  for(let i=0;i<N;i++){ const x=v[i], y=D.anio[i]; if(x==null||y==null) continue;
+    (sy[D.est[i]] ??= {}); (sy[D.est[i]][y] ??= []).push(x); yearsSet.add(y); }
+  const years=[...yearsSet].sort((a,b)=>a-b);
+  const rows=[];
+  for(const k in sy){ const ymeds={}, all=[];
+    for(const y of years){ const arr=sy[k][y]; if(arr&&arr.length){ ymeds[y]=median(arr); all.push(...arr); } }
+    rows.push({e:D.estados[+k], ymeds, overall:median(all)}); }
+  rows.sort((a,b)=> HIGHER_WORSE ? b.overall-a.overall : a.overall-b.overall);  // peor arriba
+  // rango de color (robusto: P5–P95 de las medianas estado-año)
+  const allMeds=[]; rows.forEach(r=>Object.values(r.ymeds).forEach(m=>allMeds.push(m))); allMeds.sort((a,b)=>a-b);
+  const lo=quantile(allMeds,0.05), hi=quantile(allMeds,0.95);
+  const L=x=>isLog?Math.log10(Math.max(x,1e-6)):x;
+  const a=L(lo), b=L(hi);
+  function norm(val){ let t=(L(val)-a)/((b-a)||1); t=Math.max(0,Math.min(1,t)); return HIGHER_WORSE?t:1-t; }
+  // tabla
+  let html='<table class="heat"><tr><th></th>'+years.map(y=>`<th>${y}</th>`).join('')+'</tr>';
+  rows.forEach(r=>{
+    html+=`<tr><td class="state">${titleCase(r.e)}</td>`+years.map(y=>{
+      const m=r.ymeds[y];
+      if(m==null) return '<td class="cell empty">·</td>';
+      const t=norm(m), tc=(t<0.2||t>0.6)?'#fff':'#222';
+      return `<td class="cell" style="background:${heatColor2(t)};color:${tc}" title="${titleCase(r.e)} · ${y}: ${fmtCell(m)}">${fmtCell(m)}</td>`;
+    }).join('')+'</tr>';
+  });
+  document.getElementById('heatBox').innerHTML=html+'</table>';
+  document.getElementById('sub4').textContent =
+    `Mediana de ${LABELS[indicador]} por estado y año` + (isLog?' (color en escala log)':'') +
+    ` — verde = mejor, rojo = peor` + (HIGHER_WORSE?'':' (en oxígeno, mayor valor = mejor)');
+}
+
+/* ===================================================== INFORME ===== */
+function fmt(x,d=1){ return x==null?'—':x.toLocaleString('es-MX',{minimumFractionDigits:d,maximumFractionDigits:d}); }
+function renderReport(){
+  const rows=[]; for(let i=0;i<N;i++) if(pass(i)) rows.push(i);
+  // enterococos
+  let t=0,ex=0; for(const i of rows){ const e=D.v['ENTEROC_FEC'][i]; if(e!=null){t++; if(e>200)ex++;} }
+  const pApta=t?100-ex/t*100:null, pExc=t?ex/t*100:null;
+  // OD superficie
+  const od=[]; for(const i of rows){ const x=D.v['OD_mg/L_SUP'][i]; if(x!=null) od.push(x); }
+  const odMed=median(od), odLow=od.length?od.filter(x=>x<4).length/od.length*100:null,
+        odHyp=od.length?od.filter(x=>x<2).length/od.length*100:null;
+  // SST
+  const sst=[]; for(const i of rows){ const x=D.v['SST'][i]; if(x!=null) sst.push(x); }
+  const sstMed=median(sst);
+  // tendencia
+  const excP=(y0,y1)=>{ let tt=0,ee=0; for(const i of rows){ const y=D.anio[i],e=D.v['ENTEROC_FEC'][i]; if(y==null||e==null)continue; if(y>=y0&&y<=y1){tt++; if(e>200)ee++;} } return tt?ee/tt*100:null; };
+  const eEarly=excP(2012,2014), eLate=excP(2016,2018);
+  // ranking nacional por estado
+  const byE=D.estados.map(()=>[0,0]);
+  for(let i=0;i<N;i++){ const e=D.v['ENTEROC_FEC'][i]; if(e==null)continue; byE[D.est[i]][0]++; if(e>200)byE[D.est[i]][1]++; }
+  const rank=D.estados.map((e,k)=>({e,p:byE[k][0]?byE[k][1]/byE[k][0]*100:null})).filter(r=>r.p!=null).sort((a,b)=>b.p-a.p);
+
+  const scope = eiSel===-1 ? 'a nivel nacional' : 'en '+titleCase(D.estados[eiSel]);
+  let h='';
+  h+=`<h3>Cobertura</h3><p>El análisis cubre <b>${rows.length.toLocaleString('es-MX')}</b> muestras `+
+     (eiSel===-1?`en <b>${D.meta.sitios}</b> sitios de <b>${D.estados.length}</b> estados costeros`
+                :`de <b>${titleCase(D.estados[eiSel])}</b>`)+
+     `, periodo <b>${D.meta.anio_min}–${D.meta.anio_max}</b> (serie más densa en 2012–2018).</p>`;
+  h+=`<h3>Calidad sanitaria — enterococos fecales</h3>`+
+     `<p><span class="big">${fmt(pApta)}%</span> de las muestras cumple el criterio recreativo (≤200 NMP/100 mL) ${scope}; el <b>${fmt(pExc)}%</b> lo excede.</p>`;
+  if(eiSel===-1){
+    const worst=rank.slice(0,4).map(r=>`${titleCase(r.e)} (${fmt(r.p)}%)`).join(', ');
+    const best=rank.slice(-3).reverse().map(r=>`${titleCase(r.e)} (${fmt(r.p)}%)`).join(', ');
+    h+=`<p><b>Mayor incumplimiento:</b> ${worst}.<br><b>Mejor desempeño:</b> ${best}.</p>`;
+  } else {
+    const pos=rank.findIndex(r=>r.e===D.estados[eiSel])+1;
+    if(pos>0) h+=`<p>Ocupa el lugar <b>${pos}</b> de ${rank.length} en proporción de excedencias (1 = más excedencias).</p>`;
+  }
+  if(eEarly!=null&&eLate!=null){
+    const dir=eLate>eEarly+0.2?'al alza':eLate<eEarly-0.2?'a la baja':'estable';
+    h+=`<h3>Tendencia</h3><p>La excedencia pasó de <b>${fmt(eEarly)}%</b> (2012–2014) a <b>${fmt(eLate)}%</b> (2016–2018): tendencia <b>${dir}</b>.</p>`;
+  }
+  h+=`<h3>Oxígeno disuelto (superficie)</h3><p>Mediana <b>${fmt(odMed)} mg/L</b>; el <b>${fmt(odLow)}%</b> de las muestras tiene OD &lt; 4 mg/L y el <b>${fmt(odHyp)}%</b> presenta hipoxia (&lt; 2 mg/L).</p>`;
+  h+=`<h3>Sólidos suspendidos totales</h3><p>Mediana <b>${fmt(sstMed,0)} mg/L</b>.</p>`;
+  h+=`<p style="margin-top:12px;color:#999;font-size:.78rem">Generado automáticamente a partir de los datos; se usan medianas y los criterios descritos en las notas metodológicas. Actualiza el filtro de estado para regenerar el informe.</p>`;
+  document.getElementById('reportBody').innerHTML=h;
+}
+
+/* ===================================================== RENDER ALL ===== */
+function renderAll(){ renderKPIs(); renderReport(); renderAlert(); renderTrend(); renderState(); renderComp(); renderHeatmap();
+  document.getElementById('foot').textContent =
+    `Fuente: ${D.meta.fuente} · ${D.meta.muestras.toLocaleString('es-MX')} muestras · ${D.meta.sitios} sitios · ${D.estados.length} estados`;
+}
+
+/* ===================================================== CONTROLES ===== */
+(function init(){
+  const si=document.getElementById('selInd');
+  si.innerHTML=D.indicadores.map(k=>`<option value="${k}">${LABELS[k]}</option>`).join('');
+  si.value=indicador;
+  const se=document.getElementById('selEst');
+  se.innerHTML='<option value="-1">Todos los estados</option>'+
+    D.estados.map((e,k)=>`<option value="${k}">${titleCase(e)}</option>`).join('');
+  si.addEventListener('change',e=>{ indicador=e.target.value; renderTrend(); renderState(); renderHeatmap(); });
+  se.addEventListener('change',e=>{ eiSel=+e.target.value; renderAll(); });
+  document.getElementById('btnPrint').addEventListener('click',()=>window.print());
+  renderAll();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tablero CONAGUA · Calidad del agua</title>
+<style>
+  :root{ --guinda:#611232; --guinda2:#9B2247; --igold:#A57F2C; --line:#e6e8ec; }
+  *{box-sizing:border-box}
+  html,body{height:100%; margin:0}
+  body{display:flex; flex-direction:column;
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       background:#f5f7fa; color:#222;}
+  .topbar{background:linear-gradient(135deg,var(--guinda),var(--guinda2)); color:#fff;
+          padding:14px 20px 0; flex:0 0 auto; box-shadow:0 2px 6px rgba(0,0,0,.12)}
+  .topbar .brand{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap}
+  .topbar h1{margin:0; font-size:1.15rem; font-weight:800}
+  .topbar .sub{font-size:.8rem; opacity:.85}
+  .tabs{display:flex; gap:6px; margin-top:12px}
+  .tab{appearance:none; border:0; cursor:pointer; font-size:.9rem; font-weight:600;
+       color:#f0d9e0; background:transparent; padding:11px 20px; border-radius:9px 9px 0 0;
+       border-bottom:3px solid transparent}
+  .tab:hover{color:#fff; background:rgba(255,255,255,.08)}
+  .tab.active{color:var(--guinda); background:#f5f7fa; border-bottom-color:var(--igold)}
+  .frame{flex:1 1 auto; position:relative; min-height:0}
+  .frame iframe{position:absolute; inset:0; width:100%; height:100%; border:0; background:#f5f7fa}
+  .frame iframe.hidden{display:none}
+  .loading{position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+           color:#8a8f98; font-size:.9rem}
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">
+      <h1>Tablero CONAGUA · Calidad del agua</h1>
+      <span class="sub">Sitios costeros · monitoreo de playas e indicadores costeros</span>
+    </div>
+    <div class="tabs" id="tabs">
+      <button class="tab active" data-target="fPlayas">🏖 Playas
+      <button class="tab" data-target="fInd">🧪 Indicadores costeros</button>
+    </div>
+  </div>
+
+  <div class="frame" id="frame">
+    <div class="loading" id="loading">Cargando…</div>
+    <iframe id="fPlayas" data-src="playas/index.html"      title="Dashboard de playas"></iframe>
+    <iframe id="fInd"    data-src="indicadores/index.html" title="Dashboard de indicadores" class="hidden"></iframe>
+  </div>
+
+<script>
+  const tabs = document.querySelectorAll('.tab');
+  const frames = { fPlayas: document.getElementById('fPlayas'), fInd: document.getElementById('fInd') };
+  const loading = document.getElementById('loading');
+
+  function show(target){
+    // perezoso: cargar el iframe solo la primera vez que se activa
+    const f = frames[target];
+    if(!f.src){ loading.style.display='flex'; f.addEventListener('load',()=>loading.style.display='none',{once:true}); f.src = f.dataset.src; }
+    Object.values(frames).forEach(x => x.classList.toggle('hidden', x !== f));
+    tabs.forEach(t => t.classList.toggle('active', t.dataset.target === target));
+  }
+  tabs.forEach(t => t.addEventListener('click', () => show(t.dataset.target)));
+
+  // cargar la primera pestaña al inicio
+  show('fPlayas');
+</script>
+</body>
+</html>
