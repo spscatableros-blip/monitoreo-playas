@@ -84,11 +84,11 @@
   <div class="toolbar">
     <div class="fld">
       <label>Indicador</label>
-      <select id="selInd"></select>
+      <select id="selInd" autocomplete="off"></select>
     </div>
     <div class="fld">
       <label>Estado</label>
-      <select id="selEst"></select>
+      <select id="selEst" autocomplete="off"></select>
     </div>
   </div>
 
@@ -138,6 +138,15 @@
     <p class="sub" id="sub4"></p>
     <div id="heatBox" style="overflow-x:auto"></div>
     <div class="hleg"><span>mejor</span><span class="hbar"></span><span>peor</span></div>
+  </div>
+
+  <!-- 5. Mapa de calor mes × año -->
+  <div class="card">
+    <h2>Categorización por mes</h2>
+    <p class="sub" id="sub5"></p>
+    <div id="heatMonthBox" style="overflow-x:auto"></div>
+    <div class="hleg"><span>mejor</span><span class="hbar"></span><span>peor</span></div>
+    <p class="cap" style="margin-top:8px;font-size:.78rem;color:var(--muted)">Celdas vacías (·): sin muestras ese mes-año. La cobertura mensual es más completa en 2012–2018.</p>
   </div>
 
   <div class="note">
@@ -346,6 +355,47 @@ function renderHeatmap(){
     ` — verde = mejor, rojo = peor` + (HIGHER_WORSE?'':' (en oxígeno, mayor valor = mejor)');
 }
 
+/* ===================================================== 5. MAPA MES × AÑO === */
+const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+function renderHeatmapMonth(){
+  const v=D.v[indicador], isLog=LOG_INDS.has(indicador);
+  const HIGHER_WORSE = !indicador.startsWith('OD');
+  const dec = indicador.startsWith('OD_mg');
+  const fmtCell = val => dec ? val.toFixed(1) : Math.round(val);
+  const my={}, yearsSet=new Set();
+  for(let i=0;i<N;i++){ if(!pass(i)) continue;
+    const x=v[i], y=D.anio[i], m=D.mes[i]; if(x==null||y==null||m==null) continue;
+    (my[m] ??= {}); (my[m][y] ??= []).push(x); yearsSet.add(y); }
+  const years=[...yearsSet].sort((a,b)=>a-b);
+  if(!years.length){
+    document.getElementById('heatMonthBox').innerHTML='<p style="color:var(--muted);font-size:.85rem">Sin datos suficientes para esta selección.</p>';
+    document.getElementById('sub5').textContent=''; return;
+  }
+  const rows=[];
+  for(let m=1;m<=12;m++){ const ymeds={}, all=[];
+    for(const y of years){ const arr=(my[m]||{})[y]; if(arr&&arr.length){ ymeds[y]=median(arr); all.push(...arr); } }
+    rows.push({m, ymeds, overall: all.length?median(all):null}); }
+  const allMeds=[]; rows.forEach(r=>Object.values(r.ymeds).forEach(x=>allMeds.push(x))); allMeds.sort((a,b)=>a-b);
+  const lo=quantile(allMeds,0.05), hi=quantile(allMeds,0.95);
+  const L=x=>isLog?Math.log10(Math.max(x,1e-6)):x;
+  const a=L(lo), b=L(hi);
+  function norm(val){ let t=(L(val)-a)/((b-a)||1); t=Math.max(0,Math.min(1,t)); return HIGHER_WORSE?t:1-t; }
+  let html='<table class="heat"><tr><th></th>'+years.map(y=>`<th>${y}</th>`).join('')+'</tr>';
+  rows.forEach(r=>{
+    html+=`<tr><td class="state">${MESES[r.m-1]}</td>`+years.map(y=>{
+      const val=r.ymeds[y];
+      if(val==null) return '<td class="cell empty">·</td>';
+      const t=norm(val), tc=(t<0.2||t>0.6)?'#fff':'#222';
+      return `<td class="cell" style="background:${heatColor2(t)};color:${tc}" title="${MESES[r.m-1]} · ${y}: ${fmtCell(val)}">${fmtCell(val)}</td>`;
+    }).join('')+'</tr>';
+  });
+  document.getElementById('heatMonthBox').innerHTML=html+'</table>';
+  document.getElementById('sub5').textContent =
+    `Mediana de ${LABELS[indicador]} por mes y año` + (eiSel===-1?' (nacional)':' — '+titleCase(D.estados[eiSel])) +
+    (isLog?' (color en escala log)':'') +
+    ` — verde = mejor, rojo = peor` + (HIGHER_WORSE?'':' (en oxígeno, mayor valor = mejor)');
+}
+
 /* ===================================================== INFORME ===== */
 function fmt(x,d=1){ return x==null?'—':x.toLocaleString('es-MX',{minimumFractionDigits:d,maximumFractionDigits:d}); }
 function renderReport(){
@@ -395,7 +445,7 @@ function renderReport(){
 }
 
 /* ===================================================== RENDER ALL ===== */
-function renderAll(){ renderKPIs(); renderReport(); renderAlert(); renderTrend(); renderState(); renderComp(); renderHeatmap();
+function renderAll(){ renderKPIs(); renderReport(); renderAlert(); renderTrend(); renderState(); renderComp(); renderHeatmap(); renderHeatmapMonth();
   document.getElementById('foot').textContent =
     `Fuente: ${D.meta.fuente} · ${D.meta.muestras.toLocaleString('es-MX')} muestras · ${D.meta.sitios} sitios · ${D.estados.length} estados`;
 }
