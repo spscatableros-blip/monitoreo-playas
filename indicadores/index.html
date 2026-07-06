@@ -458,7 +458,7 @@ function renderAll(){ renderKPIs(); renderReport(); renderAlert(); renderTrend()
   const se=document.getElementById('selEst');
   se.innerHTML='<option value="-1">Todos los estados</option>'+
     D.estados.map((e,k)=>`<option value="${k}">${titleCase(e)}</option>`).join('');
-  si.addEventListener('change',e=>{ indicador=e.target.value; renderTrend(); renderState(); renderHeatmap(); });
+  si.addEventListener('change',e=>{ indicador=e.target.value; renderTrend(); renderState(); renderHeatmap(); renderHeatmapMonth(); });
   se.addEventListener('change',e=>{ eiSel=+e.target.value; renderAll(); });
   document.getElementById('btnPrint').addEventListener('click',()=>window.print());
   renderAll();
