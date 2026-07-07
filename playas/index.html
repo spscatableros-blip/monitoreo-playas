@@ -681,10 +681,17 @@ function renderAll(){
 
 /* ============================================================= UPLOAD ==== */
 function prettyPeriod(name){
-  const m={'verano24':'Verano 2024','invierno24':'Invierno 2024','semana.santa25':'Semana Santa 2025',
-           'verano25':'Verano 2025','invierno25':'Invierno 2025','semana.santa26':'Semana Santa 2026'};
-  if(m[name.toLowerCase()]) return m[name.toLowerCase()];
-  return name.replace(/[._]+/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+  // Reconoce "semana.santa14", "verano24", "invierno2021", etc. y SIEMPRE arma un año de 4
+  // dígitos (necesario para las gráficas "por año"). Si no reconoce el patrón, usa el
+  // embellecido genérico anterior (sin año) como respaldo.
+  const mm = String(name).trim().toLowerCase().match(/^(semana\.?\s*santa|verano|invierno)\s*[._-]?\s*(\d{2}|\d{4})$/);
+  if(mm){
+    const temp = mm[1].replace('.',' ').replace(/\s+/g,' ').trim();
+    const label = temp==='semana santa' ? 'Semana Santa' : temp[0].toUpperCase()+temp.slice(1);
+    const yr = mm[2].length===2 ? '20'+mm[2] : mm[2];
+    return `${label} ${yr}`;
+  }
+  return String(name).replace(/[._]+/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
 }
 function cleanSheet(ws){
   const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
