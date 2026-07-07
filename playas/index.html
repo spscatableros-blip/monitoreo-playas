@@ -688,17 +688,33 @@ function prettyPeriod(name){
 }
 function cleanSheet(ws){
   const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+  if(!aoa.length) return [];
+  const norm = s => String(s==null?'':s).trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  // localizar la fila de encabezados y sus columnas POR NOMBRE (no por índice fijo): tolera
+  // que el archivo tenga distinto ancho/orden de columnas (p.ej. el que genera "Datos .xlsx").
+  let headerRow=-1, col={};
+  for(let i=0;i<Math.min(aoa.length,5);i++){
+    const r=aoa[i]||[]; const found={};
+    r.forEach((v,ci)=>{ const n=norm(v);
+      if(n==='estado') found.est=ci;
+      else if(n.startsWith('destino')) found.dst=ci;
+      else if(n==='playa') found.playa=ci;
+      else if(n.startsWith('sitio') && found.sitio==null) found.sitio=ci;
+      else if(n.startsWith('clasificacion') && found.clas==null) found.clas=ci;
+    });
+    if(found.sitio!=null && found.clas!=null){ headerRow=i; col=found; break; }
+  }
+  if(headerRow<0) return [];   // formato no reconocido
   let est=null,dst=null,playa=null; const rows=[];
-  for(let i=1;i<aoa.length;i++){               // salta primera fila (título)
+  for(let i=headerRow+1;i<aoa.length;i++){
     const r=aoa[i]; if(!r) continue;
     const g=v=> (v==null?'':String(v).trim());
-    if(g(r[0])) est=g(r[0]);
-    if(g(r[1])) dst=g(r[1]);
-    if(g(r[2])) playa=g(r[2]);
-    const sitio=g(r[3]);
+    if(col.est!=null && g(r[col.est])) est=g(r[col.est]);
+    if(col.dst!=null && g(r[col.dst])) dst=g(r[col.dst]);
+    if(col.playa!=null && g(r[col.playa])) playa=g(r[col.playa]);
+    const sitio=g(r[col.sitio]);
     if(!sitio) continue;
-    if(est.toLowerCase()==='estado' || sitio.toLowerCase()==='sitios') continue; // encabezado
-    const s=g(r[6]).toLowerCase();
+    const s=g(r[col.clas]).toLowerCase();
     const apta = s.includes('no apta')?0 : s.includes('apta')?1 : null;
     rows.push({est,dst,playa,sitio,apta});
   }
