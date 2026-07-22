@@ -159,7 +159,7 @@ El sitio se publica con **GitHub Pages** desde la rama `main`. Cualquier cambio 
   tabla por tabla.
 - **2022–2023 (playas):** provienen de una extracción previa que **no pudo verificarse** contra
   una fuente oficial. Úsense con reserva.
-- **2013 (playas):** excluido del tablero. datos  disponibles provenían de un parseo PDF incompleto y no era confiable.
+- **2013 (playas):** excluido del tablero. datos  disponibles provenían de un PDF incompleto y no era confiable.
 - **Celdas vacías en los mapas de calor:** corresponden a operativos sin resultados reportados
   por la fuente (`SIN RESULTADOS`, `NO DISPONIBLE`, o sin muestreo — por ejemplo Acapulco en
   Invierno 2023 tras el huracán Otis). No se cuentan como aptas ni como no aptas, para no
