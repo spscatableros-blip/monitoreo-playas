@@ -155,13 +155,11 @@ El sitio se publica con **GitHub Pages** desde la rama `main`. Cualquier cambio 
 
 ## Notas sobre los datos
 
-- **2014–2021 (playas):** transcritos y verificados contra las imágenes oficiales de SEMARNAT,
+- **2014–2026 (playas):** transcritos y verificados contra fuentes oficiales de SEMARNAT,
   tabla por tabla.
-- **2024–2026 (playas):** tomados del archivo oficial COFEPRIS.
 - **2022–2023 (playas):** provienen de una extracción previa que **no pudo verificarse** contra
   una fuente oficial. Úsense con reserva.
-- **2013 (playas):** excluido del tablero. La extracción disponible provenía de un parseo
-  defectuoso de los PDF y no era confiable.
+- **2013 (playas):** excluido del tablero. datos  disponibles provenían de un parseo PDF incompleto y no era confiable.
 - **Celdas vacías en los mapas de calor:** corresponden a operativos sin resultados reportados
   por la fuente (`SIN RESULTADOS`, `NO DISPONIBLE`, o sin muestreo — por ejemplo Acapulco en
   Invierno 2023 tras el huracán Otis). No se cuentan como aptas ni como no aptas, para no
