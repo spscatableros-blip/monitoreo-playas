@@ -76,13 +76,29 @@ El tablero permite actualizar los datos **sin tocar código**, desde la propia p
 
 El propio tablero incluye esta guía en la sección desplegable *"Formato requerido para subir datos"*.
 
-### Publicar los datos de forma permanente (`scripts/xlsx_a_datajs.py`)
-
 La subida desde la página es **temporal** (solo en tu navegador). Para dejar los datos
-publicados hay que regenerar `playas/data.js` y hacer commit. El script
-[`scripts/xlsx_a_datajs.py`](scripts/xlsx_a_datajs.py) hace la conversión del Excel a `data.js`
-usando **las mismas reglas** que el tablero (nombres de hoja, columnas por nombre, arrastre de
-celdas y clasificación *apta / no apta*):
+publicados hay dos caminos.
+
+### Opción A · Automática, sin instalar nada (recomendada)
+
+Un flujo de **GitHub Actions** ([`.github/workflows/actualizar-datos.yml`](.github/workflows/actualizar-datos.yml))
+regenera y publica los datos solo:
+
+1. En GitHub, entra a la carpeta [`datos/`](datos/) y pulsa **Add file → Upload files**.
+2. Arrastra tu Excel (`.xlsx`) y confirma el commit.
+3. El robot lee el Excel, regenera `playas/data.js`, hace commit, y GitHub Pages publica el
+   dashboard actualizado en 1–2 minutos. **No necesitas Python ni git en tu computadora.**
+
+También puedes lanzarlo a mano desde la pestaña **Actions → Actualizar datos de playas → Run workflow**.
+
+> La combinación es incremental: las temporadas nuevas se agregan y las repetidas (misma hoja) se
+> actualizan; el resto no se toca. El robot procesa **todos** los `.xlsx` de `datos/` en cada corrida.
+
+### Opción B · Manual, con el script en tu computadora
+
+El mismo script [`scripts/xlsx_a_datajs.py`](scripts/xlsx_a_datajs.py) hace la conversión del Excel
+a `data.js` usando **las mismas reglas** que el tablero (nombres de hoja, columnas por nombre,
+arrastre de celdas y clasificación *apta / no apta*):
 
 ```bash
 # Requisito: pip install openpyxl
@@ -113,8 +129,11 @@ git add playas/data.js && git commit -m "Actualiza datos de playas" && git push
 │   ├── mexico.js           Geometría de los estados para el mapa
 │   ├── assets/mapa.png     Mapa editorial de referencia
 │   └── lib/                Chart.js, datalabels, annotation, SheetJS (xlsx)
+├── datos/                  Excel de entrada (subir aquí dispara la actualización automática)
 ├── scripts/
 │   └── xlsx_a_datajs.py    Convierte un Excel de operativos en playas/data.js
+├── .github/workflows/
+│   └── actualizar-datos.yml  Robot que regenera y publica data.js al subir un Excel a datos/
 └── indicadores/
     ├── index.html          Tablero de indicadores
     ├── data.js             Datos 2012–2025 (window.IND_DATA)

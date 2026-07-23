@@ -13,11 +13,15 @@ USO BÁSICO
   # Añade / actualiza las temporadas del Excel dentro del data.js existente:
   python3 scripts/xlsx_a_datajs.py datos_nuevos.xlsx
 
+  # Varios archivos a la vez (p. ej. todos los de la carpeta datos/):
+  python3 scripts/xlsx_a_datajs.py datos/*.xlsx
+
   # Genera un data.js SOLO con lo del Excel (reemplaza todo, como hace la web):
   python3 scripts/xlsx_a_datajs.py datos_nuevos.xlsx --reemplazar
 
-  # Especificar rutas o solo previsualizar sin escribir:
-  python3 scripts/xlsx_a_datajs.py datos.xlsx --data playas/data.js --dry-run
+  # Previsualizar sin escribir / sin crear respaldo (CI):
+  python3 scripts/xlsx_a_datajs.py datos.xlsx --dry-run
+  python3 scripts/xlsx_a_datajs.py datos/*.xlsx --sin-respaldo
 
 REGLAS DEL EXCEL (iguales que en la web)
 ----------------------------------------
@@ -150,7 +154,7 @@ def escribir_data_js(path, data):
 # ------------------------------------------------------------------ principal
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Convierte un Excel de playas en playas/data.js")
-    ap.add_argument("xlsx", help="Archivo .xlsx con una hoja por temporada")
+    ap.add_argument("xlsx", nargs="+", help="Uno o más archivos .xlsx (cada hoja = una temporada)")
     ap.add_argument(
         "--data",
         default=str(Path(__file__).resolve().parent.parent / "playas" / "data.js"),
@@ -159,31 +163,38 @@ def main(argv=None):
     ap.add_argument(
         "--reemplazar",
         action="store_true",
-        help="Genera data.js SOLO con las temporadas del Excel (descarta las existentes)",
+        help="Genera data.js SOLO con las temporadas de los Excel (descarta las existentes)",
     )
     ap.add_argument("--dry-run", action="store_true", help="No escribe; solo muestra el resumen")
+    ap.add_argument("--sin-respaldo", action="store_true",
+                    help="No crea el archivo data.js.bak (útil en CI / GitHub Actions)")
     args = ap.parse_args(argv)
 
-    xlsx_path = Path(args.xlsx)
-    if not xlsx_path.exists():
-        sys.exit(f"ERROR: no existe el archivo {xlsx_path}")
+    xlsx_paths = [Path(x) for x in args.xlsx]
+    faltantes = [str(p) for p in xlsx_paths if not p.exists()]
+    if faltantes:
+        sys.exit("ERROR: no existe(n) el/los archivo(s): " + ", ".join(faltantes))
     data_path = Path(args.data)
 
-    # 1) Leer el Excel -> periods nuevos
-    wb = load_workbook(xlsx_path, read_only=True, data_only=True)
-    nuevos = []
-    for name in wb.sheetnames:
-        rows = clean_sheet(wb[name])
-        if not rows:
-            print(f"  ⚠ hoja '{name}' ignorada (sin datos válidos / formato no reconocido)")
-            continue
-        nuevos.append({"key": name, "label": pretty_period(name), "rows": rows})
-    wb.close()
+    # 1) Leer los Excel -> periods nuevos (en orden; hojas repetidas ganan las últimas)
+    nuevos, orden = {}, []
+    for xp in sorted(xlsx_paths, key=lambda p: p.name):
+        wb = load_workbook(xp, read_only=True, data_only=True)
+        for name in wb.sheetnames:
+            rows = clean_sheet(wb[name])
+            if not rows:
+                print(f"  ⚠ [{xp.name}] hoja '{name}' ignorada (sin datos válidos / formato no reconocido)")
+                continue
+            if name not in nuevos:
+                orden.append(name)
+            nuevos[name] = {"key": name, "label": pretty_period(name), "rows": rows}
+        wb.close()
 
+    nuevos = [nuevos[k] for k in orden]
     if not nuevos:
-        sys.exit("ERROR: no se encontraron hojas con datos válidos en el Excel.")
+        sys.exit("ERROR: no se encontraron hojas con datos válidos en los Excel.")
 
-    print(f"\nTemporadas leídas del Excel ({len(nuevos)}):")
+    print(f"\nTemporadas leídas ({len(nuevos)}):")
     for p in nuevos:
         aptas = sum(1 for r in p["rows"] if r["apta"] == 1)
         noaptas = sum(1 for r in p["rows"] if r["apta"] == 0)
@@ -220,7 +231,7 @@ def main(argv=None):
         print("\n--dry-run: no se escribió nada.")
         return
 
-    if data_path.exists() and not args.reemplazar:
+    if data_path.exists() and not args.reemplazar and not args.sin_respaldo:
         bak = data_path.with_suffix(
             data_path.suffix + ".bak." + datetime.now().strftime("%Y%m%d_%H%M%S"))
         bak.write_text(data_path.read_text(encoding="utf-8"), encoding="utf-8")

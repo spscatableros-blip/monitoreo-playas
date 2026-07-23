@@ -1,0 +1,59 @@
+name: Actualizar datos de playas
+
+# Se ejecuta cuando alguien sube o cambia un Excel en la carpeta datos/
+# (o manualmente desde la pestaña Actions → Run workflow).
+on:
+  push:
+    paths:
+      - "datos/**.xlsx"
+      - "scripts/xlsx_a_datajs.py"
+  workflow_dispatch:
+
+permissions:
+  contents: write   # necesario para que el robot haga commit de playas/data.js
+
+concurrency:
+  group: actualizar-datos
+  cancel-in-progress: false
+
+jobs:
+  regenerar-data-js:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar el repo
+        uses: actions/checkout@v4
+
+      - name: Instalar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: pip install openpyxl
+
+      - name: Comprobar que haya Excel en datos/
+        id: check
+        run: |
+          if ls datos/*.xlsx >/dev/null 2>&1; then
+            echo "hay=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "No hay archivos .xlsx en datos/. Nada que procesar."
+            echo "hay=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Regenerar playas/data.js
+        if: steps.check.outputs.hay == '1'
+        run: python3 scripts/xlsx_a_datajs.py datos/*.xlsx --sin-respaldo
+
+      - name: Hacer commit si data.js cambió
+        if: steps.check.outputs.hay == '1'
+        run: |
+          if git diff --quiet -- playas/data.js; then
+            echo "playas/data.js no cambió; no se hace commit."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add playas/data.js
+          git commit -m "Actualiza playas/data.js desde datos/ [skip ci]"
+          git push
