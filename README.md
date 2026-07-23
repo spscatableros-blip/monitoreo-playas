@@ -76,6 +76,31 @@ El tablero permite actualizar los datos **sin tocar código**, desde la propia p
 
 El propio tablero incluye esta guía en la sección desplegable *"Formato requerido para subir datos"*.
 
+### Publicar los datos de forma permanente (`scripts/xlsx_a_datajs.py`)
+
+La subida desde la página es **temporal** (solo en tu navegador). Para dejar los datos
+publicados hay que regenerar `playas/data.js` y hacer commit. El script
+[`scripts/xlsx_a_datajs.py`](scripts/xlsx_a_datajs.py) hace la conversión del Excel a `data.js`
+usando **las mismas reglas** que el tablero (nombres de hoja, columnas por nombre, arrastre de
+celdas y clasificación *apta / no apta*):
+
+```bash
+# Requisito: pip install openpyxl
+
+# 1) Previsualiza sin escribir nada
+python3 scripts/xlsx_a_datajs.py tus_datos.xlsx --dry-run
+
+# 2) Genera / actualiza playas/data.js (agrega las temporadas nuevas y actualiza las repetidas)
+python3 scripts/xlsx_a_datajs.py tus_datos.xlsx
+
+# 3) Publica
+git add playas/data.js && git commit -m "Actualiza datos de playas" && git push
+```
+
+- Por defecto **mezcla**: las temporadas nuevas se agregan y las que ya existían (misma hoja) se
+  actualizan; las demás no se tocan. Antes de sobrescribir crea un respaldo `data.js.bak.<fecha>`.
+- Con `--reemplazar` genera un `data.js` que contiene **solo** lo del Excel.
+
 ---
 
 ## Estructura del repositorio
@@ -88,6 +113,8 @@ El propio tablero incluye esta guía en la sección desplegable *"Formato requer
 │   ├── mexico.js           Geometría de los estados para el mapa
 │   ├── assets/mapa.png     Mapa editorial de referencia
 │   └── lib/                Chart.js, datalabels, annotation, SheetJS (xlsx)
+├── scripts/
+│   └── xlsx_a_datajs.py    Convierte un Excel de operativos en playas/data.js
 └── indicadores/
     ├── index.html          Tablero de indicadores
     ├── data.js             Datos 2012–2025 (window.IND_DATA)
