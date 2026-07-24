@@ -89,7 +89,7 @@ regenera y publica los datos solo:
 3. El robot lee el Excel, regenera `playas/data.js`, hace commit, y GitHub Pages publica el
    dashboard actualizado en 1–2 minutos. **No necesitas Python ni git en tu computadora.**
 
-También puedes lanzarlo a mano desde la pestaña **Actions → Actualizar datos de playas → Run workflow**.
+También puedes lanzarlo a mano desde la pestaña **Actions → Actualizar datos → Run workflow**.
 
 > La combinación es incremental: las temporadas nuevas se agregan y las repetidas (misma hoja) se
 > actualizan; el resto no se toca. El robot procesa **todos** los `.xlsx` de `datos/` en cada corrida.
@@ -119,6 +119,34 @@ git add playas/data.js && git commit -m "Actualiza datos de playas" && git push
 
 ---
 
+## Cómo actualizar los indicadores costeros
+
+Los indicadores usan otro formato (`indicadores/data.js`, columnar) y su Excel es un **volcado
+completo** de la base de CONAGUA, así que actualizar **reemplaza** todos los datos de esa sección.
+
+### Automática, sin instalar nada (recomendada)
+
+1. En GitHub, entra a la carpeta [`datos-indicadores/`](datos-indicadores/) y pulsa **Add file → Upload files**.
+2. Sube el Excel completo (hoja `indicadores`). Si ya había uno, súbelo con el mismo nombre para reemplazarlo.
+3. El robot ([`.github/workflows/actualizar-datos.yml`](.github/workflows/actualizar-datos.yml)) regenera
+   `indicadores/data.js`, hace commit, y GitHub Pages publica en 1–2 minutos.
+
+### Manual, con el script
+
+```bash
+# Requisito: pip install openpyxl
+python3 scripts/xlsx_a_inddatajs.py indicadores-cost.xlsx --dry-run   # previsualizar
+python3 scripts/xlsx_a_inddatajs.py indicadores-cost.xlsx             # regenerar
+git add indicadores/data.js && git commit -m "Actualiza indicadores" && git push
+```
+
+Columnas que usa (localizadas por nombre): `CLAVE SITIO`, `FECHA REALIZACIÓN`, `Año`, `ESTADO` y
+los 8 indicadores (`ENTEROC_FEC`, `SST`, `OD_%_SUP`, `OD_mg/L_SUP`, `OD_%_MED`, `OD_mg/L_MED`,
+`OD_%_FON`, `OD_mg/L_FON`). Las filas con estado fuera de los 17 costeros se descartan; los valores
+tipo `<3` / `>24196` se numerizan.
+
+---
+
 ## Estructura del repositorio
 
 ```
@@ -129,11 +157,13 @@ git add playas/data.js && git commit -m "Actualiza datos de playas" && git push
 │   ├── mexico.js           Geometría de los estados para el mapa
 │   ├── assets/mapa.png     Mapa editorial de referencia
 │   └── lib/                Chart.js, datalabels, annotation, SheetJS (xlsx)
-├── datos/                  Excel de entrada (subir aquí dispara la actualización automática)
+├── datos/                  Excel de entrada de PLAYAS (subir aquí dispara la actualización)
+├── datos-indicadores/      Excel de entrada de INDICADORES (volcado completo de la base)
 ├── scripts/
-│   └── xlsx_a_datajs.py    Convierte un Excel de operativos en playas/data.js
+│   ├── xlsx_a_datajs.py       Convierte un Excel de operativos en playas/data.js
+│   └── xlsx_a_inddatajs.py    Convierte el Excel de la base en indicadores/data.js
 ├── .github/workflows/
-│   └── actualizar-datos.yml  Robot que regenera y publica data.js al subir un Excel a datos/
+│   └── actualizar-datos.yml  Robot que regenera y publica ambos data.js al subir un Excel
 └── indicadores/
     ├── index.html          Tablero de indicadores
     ├── data.js             Datos 2012–2025 (window.IND_DATA)

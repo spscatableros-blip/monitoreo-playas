@@ -1,35 +1,32 @@
-name: Actualizar datos de playas
+name: Actualizar datos
 
-# Se ejecuta cuando alguien sube o cambia un Excel en la carpeta datos/
+# Se ejecuta cuando alguien sube o cambia un Excel en las carpetas de entrada
 # (o manualmente desde la pestaña Actions → Run workflow).
 on:
   push:
     paths:
       - "datos/**.xlsx"
-      - "scripts/xlsx_a_datajs.py"
+      - "datos-indicadores/**.xlsx"
+      - "scripts/*.py"
   workflow_dispatch:
 
 permissions:
-  contents: write   # necesario para que el robot haga commit de playas/data.js
+  contents: write   # necesario para que el robot haga commit de los data.js
 
 concurrency:
   group: actualizar-datos
   cancel-in-progress: false
 
 jobs:
-  regenerar-data-js:
+  # ---------------------------------------------------------------- PLAYAS ---
+  playas:
     runs-on: ubuntu-latest
     steps:
-      - name: Descargar el repo
-        uses: actions/checkout@v4
-
-      - name: Instalar Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
-      - name: Instalar dependencias
-        run: pip install openpyxl
+      - run: pip install openpyxl
 
       - name: Comprobar que haya Excel en datos/
         id: check
@@ -37,7 +34,7 @@ jobs:
           if ls datos/*.xlsx >/dev/null 2>&1; then
             echo "hay=1" >> "$GITHUB_OUTPUT"
           else
-            echo "No hay archivos .xlsx en datos/. Nada que procesar."
+            echo "No hay .xlsx en datos/. Nada que procesar."
             echo "hay=0" >> "$GITHUB_OUTPUT"
           fi
 
@@ -45,7 +42,7 @@ jobs:
         if: steps.check.outputs.hay == '1'
         run: python3 scripts/xlsx_a_datajs.py datos/*.xlsx --sin-respaldo
 
-      - name: Hacer commit si data.js cambió
+      - name: Commit si playas/data.js cambió
         if: steps.check.outputs.hay == '1'
         run: |
           if git diff --quiet -- playas/data.js; then
@@ -56,4 +53,47 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add playas/data.js
           git commit -m "Actualiza playas/data.js desde datos/ [skip ci]"
+          git push
+
+  # ----------------------------------------------------------- INDICADORES ---
+  indicadores:
+    needs: playas          # corre después de playas para no chocar en el push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install openpyxl
+
+      - name: Comprobar que haya Excel en datos-indicadores/
+        id: check
+        run: |
+          if ls datos-indicadores/*.xlsx >/dev/null 2>&1; then
+            echo "hay=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "No hay .xlsx en datos-indicadores/. Nada que procesar."
+            echo "hay=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Regenerar indicadores/data.js
+        if: steps.check.outputs.hay == '1'
+        # El Excel de indicadores es un volcado completo: se usa el archivo más
+        # reciente de la carpeta (el último por orden de nombre).
+        run: |
+          ULTIMO=$(ls -1 datos-indicadores/*.xlsx | sort | tail -1)
+          echo "Usando: $ULTIMO"
+          python3 scripts/xlsx_a_inddatajs.py "$ULTIMO"
+
+      - name: Commit si indicadores/data.js cambió
+        if: steps.check.outputs.hay == '1'
+        run: |
+          if git diff --quiet -- indicadores/data.js; then
+            echo "indicadores/data.js no cambió; no se hace commit."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add indicadores/data.js
+          git commit -m "Actualiza indicadores/data.js desde datos-indicadores/ [skip ci]"
           git push
