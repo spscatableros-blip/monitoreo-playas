@@ -89,6 +89,10 @@ regenera y publica los datos solo:
 3. El robot lee el Excel, regenera `playas/data.js`, hace commit, y GitHub Pages publica el
    dashboard actualizado en 1–2 minutos. **No necesitas Python ni git en tu computadora.**
 
+El robot **detecta el formato** automáticamente y acepta dos: el **reporte SEMARNAT** (una hoja por
+año — es el maestro completo, reemplaza todo; omite 2013 por preliminar) o el **formato por
+temporada** (una hoja por operativo — incremental). Ver detalles en [`datos/`](datos/).
+
 También puedes lanzarlo a mano desde la pestaña **Actions → Actualizar datos → Run workflow**.
 
 > La combinación es incremental: las temporadas nuevas se agregan y las repetidas (misma hoja) se
@@ -160,7 +164,8 @@ tipo `<3` / `>24196` se numerizan.
 ├── datos/                  Excel de entrada de PLAYAS (subir aquí dispara la actualización)
 ├── datos-indicadores/      Excel de entrada de INDICADORES (volcado completo de la base)
 ├── scripts/
-│   ├── xlsx_a_datajs.py       Convierte un Excel de operativos en playas/data.js
+│   ├── xlsx_a_datajs.py       Playas · formato por temporada (una hoja = un operativo)
+│   ├── semarnat_a_datajs.py   Playas · reporte SEMARNAT (una hoja por año) → playas/data.js
 │   └── xlsx_a_inddatajs.py    Convierte el Excel de la base en indicadores/data.js
 ├── .github/workflows/
 │   └── actualizar-datos.yml  Robot que regenera y publica ambos data.js al subir un Excel

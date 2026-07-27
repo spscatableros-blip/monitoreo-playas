@@ -40,7 +40,19 @@ jobs:
 
       - name: Regenerar playas/data.js
         if: steps.check.outputs.hay == '1'
-        run: python3 scripts/xlsx_a_datajs.py datos/*.xlsx --sin-respaldo
+        # Detecta el formato de cada Excel:
+        #  - hojas nombradas por año (2014, 2024...) -> reporte SEMARNAT (reemplazo completo)
+        #  - hojas por temporada (verano24...)       -> formato por temporada (mezcla)
+        run: |
+          for f in datos/*.xlsx; do
+            if python3 -c "import sys,re;from openpyxl import load_workbook;wb=load_workbook(sys.argv[1],read_only=True);sys.exit(0 if any(re.fullmatch(r'\d{4}',str(s).strip()) for s in wb.sheetnames) else 1)" "$f"; then
+              echo "[$f] formato SEMARNAT (reporte por año)"
+              python3 scripts/semarnat_a_datajs.py "$f"
+            else
+              echo "[$f] formato por temporada"
+              python3 scripts/xlsx_a_datajs.py "$f" --sin-respaldo
+            fi
+          done
 
       - name: Commit si playas/data.js cambió
         if: steps.check.outputs.hay == '1'
