@@ -54,6 +54,36 @@ def _g(row, i):
     return "" if v is None else str(v).strip()
 
 
+def _num(v):
+    """Valor de NMP/100 mL -> número o None.
+    '<10' -> 10 · '>24196' -> 24196 · 'No se midió' / 'N/A' / fecha / vacío -> None."""
+    if v is None:
+        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    s = str(v).strip().replace("<", "").replace(">", "").replace(",", "")
+    if not s:
+        return None
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
+def _buscar_col(rows, hr, bc, fin, pred):
+    """Busca en las sub-filas de encabezado (hr+1, hr+2) la primera columna del rango
+    [bc, fin) cuyo texto normalizado cumpla `pred`. Devuelve su índice o None."""
+    for off in (1, 2):
+        ri = hr + off
+        if ri >= len(rows):
+            continue
+        r = rows[ri]
+        for ci in range(bc, min(fin, len(r))):
+            if pred(_norm(r[ci])):
+                return ci
+    return None
+
+
 def parse_hoja_anio(ws):
     """Devuelve {key: [rows]} para una hoja-año del reporte SEMARNAT."""
     rows = [list(r) for r in ws.iter_rows(values_only=True)]
@@ -89,14 +119,19 @@ def parse_hoja_anio(ws):
     if not bloques:
         return {}
 
-    # 3) columna de Clasificación de cada bloque (en la sub-fila hr+1, dentro del rango del bloque)
-    sub = [_norm(c) for c in rows[hr + 1]] if hr + 1 < len(rows) else []
+    # 3) columnas de NMP/100 mL y Clasificación de cada bloque. El reporte tiene dos filas de
+    #    sub-encabezado (hr+1: "Calidad bacteriológica…"; hr+2: "Fecha · NMP/100 mL · Clasificación"),
+    #    así que se buscan en ambas. Si no aparecen, se usa la posición estándar del bloque.
+    ancho = max((len(r) for r in rows[hr:hr + 3]), default=len(head))
     periodos = {}
     for bi, (bc, temp, yr) in enumerate(bloques):
-        fin = bloques[bi + 1][0] if bi + 1 < len(bloques) else max(len(sub), bc + 3)
-        clas = next((ci for ci in range(bc, fin)
-                     if ci < len(sub) and sub[ci].startswith("clasificacion")), bc + 2)
-        periodos[f"{temp}{yr[2:]}"] = {"clas": clas, "temp": temp, "yr": yr, "rows": []}
+        fin = bloques[bi + 1][0] if bi + 1 < len(bloques) else max(ancho, bc + 3)
+        clas = _buscar_col(rows, hr, bc, fin, lambda n: n.startswith("clasificacion"))
+        nmp = _buscar_col(rows, hr, bc, fin, lambda n: "nmp" in n)
+        periodos[f"{temp}{yr[2:]}"] = {
+            "clas": bc + 2 if clas is None else clas,
+            "nmp":  bc + 1 if nmp is None else nmp,
+            "temp": temp, "yr": yr, "rows": []}
 
     # 4) filas de datos (con arrastre de Estado/Destino/Playa)
     est = dst = playa = None
@@ -113,7 +148,9 @@ def parse_hoja_anio(ws):
         for info in periodos.values():
             s = _g(r, info["clas"]).lower()
             apta = 0 if "no apta" in s else (1 if "apta" in s else None)
-            info["rows"].append({"est": est, "dst": dst, "playa": playa, "sitio": sitio, "apta": apta})
+            nmp = _num(r[info["nmp"]] if info["nmp"] < len(r) else None)
+            info["rows"].append({"est": est, "dst": dst, "playa": playa, "sitio": sitio,
+                                 "apta": apta, "nmp": nmp})
 
     return periodos
 
