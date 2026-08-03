@@ -240,6 +240,19 @@
     <p class="cap">Una línea por destino del estado. Cambia el nivel (playas / muestras) en la barra superior.</p>
   </div>
 
+  <!-- FICHA POR PLAYA -->
+  <div class="card" id="fichaCard">
+    <h2>Ficha por playa</h2>
+    <p class="sub">Historial completo de una playa: estatus en cada operativo y detalle por sitio de muestreo</p>
+    <div class="row-ctrl" style="flex-wrap:wrap">Playa:
+      <input id="fichaInput" list="fichaList" placeholder="Escribe para buscar… (ej. Rosarito)" autocomplete="off"
+             style="flex:1;min-width:240px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:.9rem">
+      <datalist id="fichaList"></datalist>
+      <button class="dl" id="fichaClear" title="Limpiar">✕</button>
+    </div>
+    <div id="fichaBody"><p style="color:var(--muted);font-size:.9rem">Escribe el nombre de una playa (o parte) y elige una opción de la lista para ver su historial 2014–2026.</p></div>
+  </div>
+
   <!-- MAP -->
   <div class="card">
     <h2 class="cardhead">Mapa nacional de cumplimiento
@@ -608,6 +621,160 @@ function renderExp(){
   });
 }
 
+/* ============================================================= FICHA ===== */
+// El archivo oficial cambia la nomenclatura de las playas entre años ("Playa de Rosarito" →
+// "Rosarito", "Playa Uaymtún" → "Uaymitún"). El identificador estable es el SITIO de muestreo,
+// así que la ficha se ancla a los sitios y no al nombre de la playa.
+const normSitio = s => String(s||'').trim().toLowerCase()
+  .normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ');
+
+let CAT_CACHE=null;
+function playaCatalog(){
+  if(CAT_CACHE) return CAT_CACHE;
+  // 1) conjunto de sitios de cada nombre de playa, y último operativo en que aparece
+  const byName=new Map();
+  DATA.periods.forEach((p,pi)=>p.rows.forEach(r=>{
+    if(!r.playa) return;
+    const k=r.est+'|'+r.dst+'|'+r.playa;
+    if(!byName.has(k)) byName.set(k,{est:r.est,dst:r.dst,playa:r.playa,sit:new Set(),ult:-1});
+    const o=byName.get(k); o.sit.add(normSitio(r.sitio)); if(pi>o.ult) o.ult=pi;
+  }));
+  // 2) dos nombres con el MISMO conjunto de sitios son el mismo lugar renombrado: se unifican
+  //    conservando el nombre más reciente. (Nombres con sitios distintos NO se fusionan: p. ej.
+  //    "Revolcadero" y "Revolcadero I" son accesos separados y deben seguir siéndolo.)
+  const g=new Map();
+  byName.forEach(o=>{
+    const f=o.est+'|'+o.dst+'||'+[...o.sit].sort().join('~');
+    if(!g.has(f)) g.set(f,[]);
+    g.get(f).push(o);
+  });
+  CAT_CACHE=[...g.values()].map(arr=>{
+    arr.sort((a,b)=>b.ult-a.ult);
+    const o=arr[0];
+    return {est:o.est, dst:o.dst, playa:o.playa, sit:o.sit,
+            alias:arr.slice(1).map(x=>x.playa),
+            label:`${o.playa} · ${o.dst} · ${o.est}`};
+  }).sort((a,b)=>a.label.localeCompare(b.label));
+  return CAT_CACHE;
+}
+function fillFichaList(){
+  CAT_CACHE=null;   // los datos pueden haber cambiado (carga de .xlsx)
+  document.getElementById('fichaList').innerHTML =
+    playaCatalog().map(o=>`<option value="${String(o.label).replace(/"/g,'&quot;')}"></option>`).join('');
+}
+// Estatus de la playa en un operativo: 1 = APTA (todos sus sitios aptos), 0 = NO APTA, null = sin dato
+function playaStatus(rows){
+  const v=rows.map(r=>r.apta).filter(valid);
+  return v.length ? (v.every(x=>x===1)?1:0) : null;
+}
+function renderFicha(){
+  destroy('g6');
+  const val=document.getElementById('fichaInput').value.trim();
+  const body=document.getElementById('fichaBody');
+  const o=playaCatalog().find(x=>x.label===val);
+  if(!o){
+    body.innerHTML='<p style="color:var(--muted);font-size:.9rem">Escribe el nombre de una playa (o parte) y elige una opción de la lista para ver su historial 2014–2026.</p>';
+    return;
+  }
+  // Serie por operativo
+  // se filtra por los SITIOS de la playa (identificador estable entre años), no por su nombre
+  const per=DATA.periods.map(p=>{
+    const rows=p.rows.filter(r=>r.est===o.est && r.dst===o.dst && o.sit.has(normSitio(r.sitio)));
+    const v=rows.map(r=>r.apta).filter(valid);
+    return {label:p.label, corto:seasonAbbr(p)+String(periodYear(p)).slice(2), anio:periodYear(p),
+            st:playaStatus(rows), rows,
+            pct: v.length ? v.filter(x=>x===1).length/v.length*100 : null};   // % de sitios aptos
+  });
+  const con=per.filter(x=>x.st!=null);                        // operativos con dato
+  const noAptaN=con.filter(x=>x.st===0).length;
+  const pct=con.length ? (con.length-noAptaN)/con.length*100 : null;
+  const ult=con[con.length-1];
+  // sitios normalizados → nombre a mostrar (gana el más reciente, al recorrer en orden cronológico)
+  const sitMap=new Map();
+  per.forEach(x=>x.rows.forEach(r=>sitMap.set(normSitio(r.sitio), r.sitio)));
+  const sitios=[...sitMap.keys()];
+  const pill=(st)=> st==null?'<span class="pill" style="background:#98a2ad">SIN DATO</span>'
+    : st===1?'<span class="pill" style="background:'+C.green+'">APTA</span>'
+    : '<span class="pill" style="background:'+C.red+'">NO APTA</span>';
+  // KPIs + gráfica + tabla por sitio
+  body.innerHTML=`
+    <p style="margin:2px 0 12px;font-size:.95rem"><b style="color:var(--navy)">${o.playa}</b>
+      <span style="color:var(--muted)"> · ${o.dst}, ${o.est} · ${sitios.length} sitio${sitios.length!==1?'s':''} de muestreo</span>
+      ${o.alias&&o.alias.length?`<br><span style="color:var(--muted);font-size:.85rem">También registrada como: ${o.alias.join(' · ')}</span>`:''}</p>
+    <div class="kpis" style="margin-bottom:16px">
+      <div class="kpi"><div class="num">${con.length}</div><div class="lbl">operativos con dato</div></div>
+      <div class="kpi"><div class="num" style="color:${noAptaN?C.red:C.green}">${noAptaN}</div><div class="lbl">veces NO APTA</div></div>
+      <div class="kpi"><div class="num">${pct!=null?pct.toFixed(0)+'%':'—'}</div><div class="lbl">cumplimiento histórico</div></div>
+      <div class="kpi"><div class="num" style="font-size:1.1rem;padding-top:8px">${ult?pill(ult.st):'—'}</div><div class="lbl">último operativo${ult?' ('+ult.label+')':''}</div></div>
+    </div>
+    <div class="chart-wrap" style="height:300px"><canvas id="g6"></canvas></div>
+    <div style="overflow-x:auto;margin-top:14px" id="fichaSitios"></div>
+    <p class="cap">Enterococos fecales (NMP/100 mL) registrados en esta playa por año: la barra marca el
+      <b>valor máximo</b> medido entre todos sus sitios y operativos del año, que es el que determina la
+      clasificación. La línea roja es el límite normativo de <b>200 NMP/100 mL</b>; las barras rojas lo superan.
+      Escala logarítmica. Las barras grises indican años sin medición registrada.</p>`;
+  // Histograma por año: enterococos (NMP/100 mL) — máximo anual
+  const yrs=yearsList();
+  const hist=yrs.map(y=>{
+    const g=per.filter(x=>String(x.anio)===String(y));
+    const vals=g.flatMap(x=>x.rows.map(r=>r.nmp)).filter(v=>v!=null && !isNaN(v));
+    const orden=[...vals].sort((a,b)=>a-b);
+    return {y, max: vals.length?Math.max(...vals):null,
+            med: orden.length? (orden.length%2 ? orden[orden.length>>1]
+                               : (orden[(orden.length>>1)-1]+orden[orden.length>>1])/2) : null,
+            n: vals.length, no:g.filter(x=>x.st===0).length, con:g.filter(x=>x.st!=null).length};
+  });
+  const conVal=hist.filter(h=>h.max!=null);
+  const topY=conVal.length? Math.max(400, Math.max(...conVal.map(h=>h.max))*1.9) : 400;
+  charts.g6=new Chart(document.getElementById('g6'),{
+    type:'bar',
+    data:{labels:hist.map(h=>h.y),datasets:[{
+      data:hist.map(h=>h.max),
+      backgroundColor:hist.map(h=>h.max!=null && h.max>200 ? 'rgba(192,57,43,.72)' : '#AED6E6'),
+      borderColor:hist.map(h=>h.max!=null && h.max>200 ? '#8e2a20' : '#1b3a4b'), borderWidth:1.2,
+      categoryPercentage:1.0, barPercentage:1.0,          // barras contiguas (estilo histograma)
+      datalabels:{display:c=>c.dataset.data[c.dataIndex]!=null, anchor:'end', align:'end',
+                  color:c=>c.dataset.data[c.dataIndex]>200?'#8e2a20':'#1b3a4b',
+                  font:{weight:'bold',size:10}, formatter:v=>v==null?'':Math.round(v).toLocaleString('es-MX')}
+    },{
+      // años sin ninguna medición, para no confundirlos con "cero enterococos"
+      data:hist.map(h=>h.max==null? 1.6 : null),
+      backgroundColor:'#e8ebef', borderColor:'#c2cad3', borderWidth:1,
+      categoryPercentage:1.0, barPercentage:1.0, datalabels:{display:false}
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        tooltip:{filter:c=>c.datasetIndex===0 || hist[c.dataIndex].max==null,
+          callbacks:{
+            title:c=>'Año '+hist[c[0].dataIndex].y,
+            label:c=>{const h=hist[c.dataIndex];
+              if(h.max==null) return 'Sin medición registrada';
+              return [`Máximo: ${Math.round(h.max).toLocaleString('es-MX')} NMP/100 mL`,
+                      `Mediana: ${Math.round(h.med).toLocaleString('es-MX')} NMP/100 mL`,
+                      `${h.n} medicion${h.n!==1?'es':''} · ${h.no} de ${h.con} operativos NO APTA`];}}},
+        annotation:{annotations:{lim:{type:'line',scaleID:'y',value:200,
+          borderColor:C.red,borderWidth:1.6,borderDash:[6,4],
+          label:{display:true,content:'Límite 200 NMP/100 mL',position:'end',
+            color:C.red,backgroundColor:'rgba(255,255,255,.88)',font:{size:10}}}}}},
+      scales:{x:{grid:{display:false},ticks:{maxRotation:0,font:{size:11}},
+                 title:{display:true,text:'Año'}},
+              y:{type:'logarithmic', min:1, max:topY,
+                 ticks:{callback:v=>[1,10,100,1000,10000].includes(v)?v.toLocaleString('es-MX'):''},
+                 grid:{color:'#eef1f4'}, title:{display:true,text:'Enterococos (NMP/100 mL)'}}}}
+  });
+  // Tabla sitio × operativo (solo si hay más de un sitio o el sitio difiere del nombre de la playa)
+  const td=(st,t)=>{const bg=st==null?'#eef1f4':st===1?'#d5f2e0':'#f7d9d4';
+    const tx=st==null?'·':st===1?'A':'N'; const c=st==null?'#98a2ad':st===1?'#1d7a43':'#a03225';
+    return `<td class="cell" style="background:${bg};color:${c}" title="${t}">${tx}</td>`;};
+  document.getElementById('fichaSitios').innerHTML=
+    `<table class="heat"><tr><th style="text-align:left">Sitio</th>${per.map(x=>`<th>${x.corto}</th>`).join('')}</tr>`+
+    sitios.map(s=>`<tr><td class="state">${sitMap.get(s)}</td>${per.map(x=>{
+      const r=x.rows.find(rr=>normSitio(rr.sitio)===s);
+      const nm=r&&r.nmp!=null ? ' · '+Math.round(r.nmp).toLocaleString('es-MX')+' NMP' : '';
+      return td(r?(valid(r.apta)?r.apta:null):null, x.label+' — '+sitMap.get(s)+nm);
+    }).join('')}</tr>`).join('')+'</table>';
+}
+
 /* ============================================================= RANK ====== */
 function renderRank(per){
   const last = per || DATA.periods[DATA.periods.length-1];
@@ -715,7 +882,7 @@ function downloadAllPNG(){
 /* ============================================================= RENDER ALL  */
 function renderAll(){
   renderKPIs(); fillReportScope(); renderReport(); renderAlert(); renderG1(); renderG1b(); renderG2(); renderG3();
-  renderHeat(); renderFigB(); fillExpStates(); renderExp(); renderMap();
+  renderHeat(); renderFigB(); fillExpStates(); renderExp(); fillFichaList(); renderFicha(); renderMap();
   const last=DATA.periods[DATA.periods.length-1];
   document.getElementById('foot').textContent =
     `Fuente: ${DATA.meta?DATA.meta.fuente:'CONAGUA · COFEPRIS'} · ${DATA.periods.length} operativos cargados · último: ${last.label}`;
@@ -797,6 +964,9 @@ document.getElementById('levelSeg').addEventListener('click',e=>{
 });
 document.getElementById('g3n').addEventListener('change',renderG3);
 document.getElementById('expState').addEventListener('change',e=>{ EXP_STATE=e.target.value; renderExp(); });
+document.getElementById('fichaInput').addEventListener('change',renderFicha);
+document.getElementById('fichaInput').addEventListener('input',e=>{ if(playaCatalog().some(o=>o.label===e.target.value.trim())) renderFicha(); });
+document.getElementById('fichaClear').addEventListener('click',()=>{ document.getElementById('fichaInput').value=''; renderFicha(); });
 document.getElementById('mapPeriod').addEventListener('change',renderMap);
 document.getElementById('heatOnlyFail').addEventListener('change',renderHeat);
 document.getElementById('dlData').addEventListener('click',downloadXLSX);
